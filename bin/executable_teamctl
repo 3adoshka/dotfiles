@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TEAMCTL_ENV="${TEAMCTL_ENV:-}"
+DRY_RUN="${TEAMCTL_DRY_RUN:-1}"
+
+log() {
+  echo "[teamctl] $*"
+}
+
+require_env() {
+  if [[ -z "${!1:-}" ]]; then
+    log "ERROR: required env var $1 is not set"
+    exit 1
+  fi
+}
+
+check_k8s_context() {
+  local ctx
+  ctx=$(kubectl config current-context 2>/dev/null || echo "")
+  if [[ -z "$ctx" ]]; then
+    log "ERROR: no active kubectl context"
+    exit 1
+  fi
+
+  if [[ "$ctx" == *"prod"* && "$TEAMCTL_FORCE" != "1" ]]; then
+    log "ERROR: context looks like production ($ctx). Set TEAMCTL_FORCE=1 to proceed."
+    exit 1
+  fi
+}
+
+deploy_service() {
+  local service="$1"
+  local version="${2:-}"
+  require_env TEAMCTL_ENV
+  check_k8s_context
+
+  log "Deploying service=$service env=$TEAMCTL_ENV version=${version:-latest} (DRY_RUN=$DRY_RUN)"
+  local ns="$TEAMCTL_ENV-$service"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "[DRY-RUN] kubectl -n $ns set image deployment/$service $service=$service:$version"
+    kubectl -n "$ns" set image "deployment/$service" "$service=$service:$version" --dry-run=client -o yaml
+  else
+    kubectl -n "$ns" set image "deployment/$service" "$service=$service:$version"
+  fi
+}
+
+rollback_service() {
+  local service="$1"
+  require_env TEAMCTL_ENV
+  check_k8s_context
+
+  log "Rolling back service=$service env=$TEAMCTL_ENV (DRY_RUN=$DRY_RUN)"
+  local ns="$TEAMCTL_ENV-$service"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "[DRY-RUN] kubectl -n $ns rollout undo deployment/$service"
+    kubectl -n "$ns" rollout undo "deployment/$service" --dry-run=client -o yaml
+  else
+    kubectl -n "$ns" rollout undo "deployment/$service"
+  fi
+}
+
+migrate_db() {
+  local service="$1"
+  require_env TEAMCTL_ENV
+  check_k8s_context
+
+  log "Running DB migrations for service=$service env=$TEAMCTL_ENV (DRY_RUN=$DRY_RUN)"
+  local ns="$TEAMCTL_ENV-$service"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "[DRY-RUN] kubectl -n $ns create job --from=cronjob/$service-migrations"
+    kubectl -n "$ns" create job --from="cronjob/$service-migrations" "$service-migrate-$(date +%s)" --dry-run=client -o yaml
+  else
+    kubectl -n "$ns" create job --from="cronjob/$service-migrations" "$service-migrate-$(date +%s)"
+  fi
+}
+
+usage() {
+  cat <<USAGE_EOF
+Usage: teamctl <command> [args]
+
+Commands:
+  deploy <service> [version]   Deploy a service
+  rollback <service>           Rollback last deployment
+  migrate <service>            Run DB migrations
+
+Env vars:
+  TEAMCTL_ENV       Required. One of: dev, staging, prod
+  TEAMCTL_DRY_RUN   1 (default) or 0
+  TEAMCTL_FORCE     Set to 1 to allow dangerous operations (e.g. prod)
+USAGE_EOF
+}
+
+main() {
+  local cmd="${1:-}"
+  shift || true
+
+  case "$cmd" in
+    deploy)
+      deploy_service "$@"
+      ;;
+    rollback)
+      rollback_service "$@"
+      ;;
+    migrate)
+      migrate_db "$@"
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"

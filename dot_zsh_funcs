@@ -1,0 +1,42 @@
+# Show top processes + open files + network for a PID
+debug_pid() {
+  local pid=$1
+  if [[ -z $pid ]]; then
+    echo "Usage: debug_pid <pid>"
+    return 1
+  fi
+
+  echo "=== Top of PID $pid (ps) ==="
+  ps -o pid,ppid,user,%cpu,%mem,command -p "$pid"
+
+  echo -e "\n=== Open files (lsof) ==="
+  lsof -p "$pid" 2>/dev/null || echo "lsof not available or insufficient permissions"
+
+  echo -e "\n=== Network connections (ss) ==="
+  ss -tnp 2>/dev/null | grep "$pid" || echo "No TCP connections found or ss unavailable"
+}
+
+# Quick system overview (non-interactive)
+sys_quick() {
+  echo "=== Load & uptime ==="
+  uptime
+
+  echo -e "\n=== Top 10 processes by CPU ==="
+  ps -eo pid,user,%cpu,%mem,comm --sort=-%cpu | head -n 11
+
+  echo -e "\n=== Memory usage ==="
+  free -h
+
+  echo -e "\n=== Disk usage ==="
+  df -hT / /home 2>/dev/null || df -h /
+}
+
+# Trace syscalls for a command (Linux)
+trace_cmd() {
+  if ! command -v strace >/dev/null; then
+    echo "strace not installed"
+    return 1
+  fi
+  strace -f -o /tmp/strace.out "$@"
+  echo "Trace written to /tmp/strace.out"
+}
