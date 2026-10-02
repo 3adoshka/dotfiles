@@ -126,3 +126,18 @@ export PATH='/home/adil/.hunk/bin':"$PATH"
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/bin:$PATH"
+source "$HOME/.zsh_funcs"
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# Observability aliases
+alias graf="grafana-cli"
+alias promq="promtool query api"
+alias pd="pagerduty-cli"
+alias og="opsgenie"
+
+# Cloud CLIs
+alias k="kubectl"
+
+# Observability aliases
+alias promq="promtool query api"
+alias k="kubectl"
