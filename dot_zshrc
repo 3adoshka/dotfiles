@@ -14,3 +14,68 @@ csvq() {
 jsonq() {
   trdsql "$@"
 }
+export PATH="$HOME/.cargo/bin:$PATH"
+
+# ===== Japanese CLI tools (noborus) =====
+alias less="ov"
+alias more="ov"
+
+# trdsql helpers
+csvq() {
+  trdsql "$@"
+}
+
+jsonq() {
+  trdsql "$@"
+}
+
+# kubectl + trdsql integration (Japanese SRE pattern)
+ksql() {
+  if [[ -z "$1" || -z "$2" ]]; then
+    echo "Usage: ksql <resource> <sql-query>"
+    echo "Example: ksql pods \"SELECT metadata.name, status.phase FROM - WHERE status.phase = 'Running'\""
+    return 1
+  fi
+  kubectl get "$1" -o json | trdsql -ijson "$2"
+}
+
+# Query running pods
+krunning() {
+  kubectl get pods -o json | trdsql -ijson "SELECT metadata.name, metadata.namespace, status.phase FROM - WHERE status.phase = 'Running'"
+}
+
+# Query failed pods
+kfailed() {
+  kubectl get pods -o json | trdsql -ijson "SELECT metadata.name, metadata.namespace, status.phase, status.reason FROM - WHERE status.phase != 'Running'"
+}
+
+# Query services
+ksvc() {
+  kubectl get svc -o json | trdsql -ijson "SELECT metadata.name, metadata.namespace, spec.type, spec.clusterIP FROM -"
+}
+
+# ===== System monitoring with psutilsql =====
+# Top 10 CPU processes
+psql-cpu() {
+  psutilsql "SELECT pid, name, cpu_percent, memory_percent FROM process ORDER BY cpu_percent DESC LIMIT 10"
+}
+
+# Top 10 memory processes
+psql-mem() {
+  psutilsql "SELECT pid, name, memory_percent, cpu_percent FROM process ORDER BY memory_percent DESC LIMIT 10"
+}
+
+# Find processes using > X% memory
+psql-mem-high() {
+  local threshold="${1:-5.0}"
+  psutilsql "SELECT pid, name, memory_percent, cpu_percent FROM process WHERE memory_percent > $threshold"
+}
+
+# ===== Observability aliases =====
+alias promq="promtool query api"
+alias k="kubectl"
+
+# ===== Cloud CLIs (install when needed) =====
+# alias aws="aws"
+# alias gcloud="gcloud"
+# alias az="az"
