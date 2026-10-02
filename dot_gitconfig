@@ -1,0 +1,9 @@
+[user]
+	name = Adil
+	email = adil.isama@gmail.com
+[credential "https://github.com"]
+	helper = 
+	helper = !/home/adil/.local/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/home/adil/.local/bin/gh auth git-credential
