@@ -79,3 +79,114 @@ alias k="kubectl"
 # alias aws="aws"
 # alias gcloud="gcloud"
 # alias az="az"
+
+# ===== Data Engineering CLI (Japanese + Modern Stack) =====
+
+# DuckDB shortcuts
+alias duck="duckdb"
+
+# Query CSV with DuckDB
+duckcsv() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: duckcsv <file.csv> [query]"
+    echo "Example: duckcsv data.csv \"SELECT * FROM - LIMIT 10\""
+    return 1
+  fi
+  local file="$1"
+  local query="${2:-SELECT * FROM '$file' LIMIT 10}"
+  duckdb -c "$query"
+}
+
+# Query Parquet with DuckDB
+
+# Query JSON with DuckDB
+duckjson() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: duckjson <file.json> [query]"
+    return 1
+  fi
+  local file="$1"
+  local query="${2:-SELECT * FROM read_json_auto('$file') LIMIT 10}"
+  duckdb -c "$query"
+}
+
+# Quick CSV stats with DuckDB
+csvstats() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: csvstats <file.csv>"
+    return 1
+  fi
+  duckdb -c "
+    SELECT 
+      COUNT(*) as row_count,
+      COUNT(DISTINCT *) as unique_rows
+    FROM '$1'
+  "
+}
+
+# Convert CSV to Parquet
+csv2parquet() {
+  if [[ -z "$1" || -z "$2" ]]; then
+    echo "Usage: csv2parquet <input.csv> <output.parquet>"
+    return 1
+  fi
+  duckdb -c "COPY (SELECT * FROM '$1') TO '$2' (FORMAT PARQUET)"
+  echo "Converted $1 to $2"
+}
+
+# Query multiple CSV files (glob pattern)
+duckcsv-glob() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: duckcsv-glob <pattern> [query]"
+    echo "Example: duckcsv-glob 'logs/*.csv' \"SELECT COUNT(*) FROM read_csv_auto('$1')\""
+    return 1
+  fi
+  local pattern="$1"
+  local query="${2:-SELECT * FROM read_csv_auto('$pattern') LIMIT 10}"
+  duckdb -c "$query"
+}
+
+# Interactive DuckDB with pretty output
+ducki() {
+  duckdb -column -header "$@"
+}
+
+# trdsql + DuckDB combo (best of both)
+trd2duck() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: trd2duck <file.csv> <output.duckdb>"
+    return 1
+  fi
+  local input="$1"
+  local output="${2:-data.duckdb}"
+  
+  # Import CSV into DuckDB
+  duckdb "$output" -c "CREATE TABLE data AS SELECT * FROM read_csv_auto('$input')"
+  echo "Imported $input into $output (table: data)"
+}
+
+# Quick data profiling
+profile-data() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: profile-data <file.csv>"
+    return 1
+  fi
+  duckdb -c "
+    DESCRIBE SELECT * FROM '$1';
+    SELECT COUNT(*) as total_rows FROM '$1';
+  "
+}
+
+# Query Parquet with DuckDB (fixed)
+duckparquet() {
+  if [[ -z "$1" ]]; then
+    echo "Usage: duckparquet <file.parquet> [query]"
+    return 1
+  fi
+  local file="$1"
+  if [[ -n "$2" ]]; then
+    duckdb -c "$2"
+  else
+    duckdb -c "SELECT * FROM read_parquet('$file') LIMIT 10"
+  fi
+}
